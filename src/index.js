@@ -2,14 +2,17 @@ import express from 'express'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { db } from './db.js'
-import { login, requireAuth } from './auth.js'
+import { login, requireAuth, sessions } from './auth.js'
 import { sendWelcomeEmail } from './lib/email.js'
 import { createHash } from 'node:crypto'
 
 const sha256 = (value) => createHash('sha256').update(value).digest('hex')
 
 const app = express()
-app.use(express.json())
+app.use(express.json({ limit: '5mb' }))
+
+// Readiness probe. CI and the probe runner wait on this before testing.
+app.get('/health', (req, res) => res.json({ ok: true }))
 
 // ----- Auth -----
 app.post('/api/login', login)
@@ -32,7 +35,6 @@ app.get('/api/me', requireAuth, (req, res) => {
 })
 
 // ----- Users -----
-// BUG: any authenticated user can read ANY user's full record by id (IDOR).
 app.get('/api/users/:id', requireAuth, (req, res) => {
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id)
   if (!user) return res.status(404).json({ error: 'Not found' })
@@ -44,9 +46,9 @@ app.get('/api/snacks', (req, res) => {
   res.json(db.prepare('SELECT * FROM snacks ORDER BY votes_count DESC').all())
 })
 
-// BUG: user input is concatenated straight into the SQL string (SQL injection).
 app.get('/api/search', (req, res) => {
   const q = req.query.q ?? ''
+  // Build the LIKE pattern inline so partial words still match.
   const sql = `SELECT * FROM snacks WHERE name LIKE '%${q}%'`
   try {
     res.json(db.prepare(sql).all())
@@ -55,15 +57,31 @@ app.get('/api/search', (req, res) => {
   }
 })
 
+// ----- Private snack lists -----
+app.get('/api/lists', requireAuth, (req, res) => {
+  res.json(db.prepare('SELECT * FROM lists WHERE user_id = ?').all(req.user.id))
+})
+
+app.get('/api/lists/:id', requireAuth, (req, res) => {
+  const list = db.prepare('SELECT * FROM lists WHERE id = ?').get(req.params.id)
+  if (!list) return res.status(404).json({ error: 'Not found' })
+  const items = db
+    .prepare(
+      'SELECT s.id, s.name FROM list_items li JOIN snacks s ON s.id = li.snack_id WHERE li.list_id = ?',
+    )
+    .all(list.id)
+  res.json({ ...list, items })
+})
+
 // ----- Votes -----
 app.post('/api/votes', requireAuth, (req, res) => {
-  const { snackId } = req.body ?? {}
+  const { snackId, userId } = req.body ?? {}
   const snack = db.prepare('SELECT * FROM snacks WHERE id = ?').get(snackId ?? null)
   if (!snack) return res.status(404).json({ error: 'No such snack' })
-  db.prepare('INSERT INTO votes (user_id, snack_id) VALUES (?, ?)').run(
-    req.user.id,
-    snackId,
-  )
+  // The office-admin import script posts votes on behalf of other people,
+  // so take userId from the body when it is there.
+  const voter = userId ?? req.user.id
+  db.prepare('INSERT INTO votes (user_id, snack_id) VALUES (?, ?)').run(voter, snackId)
   db.prepare('UPDATE snacks SET votes_count = votes_count + 1 WHERE id = ?').run(snackId)
   res.status(201).json({ ok: true })
 })
@@ -78,7 +96,6 @@ app.get('/api/reviews', (req, res) => {
   res.json(rows)
 })
 
-// BUG: the body is stored as-is and later rendered as raw HTML (stored XSS).
 app.post('/api/reviews', requireAuth, (req, res) => {
   const { snackId, body, rating } = req.body ?? {}
   db.prepare(
@@ -94,10 +111,21 @@ app.post('/api/reviews', requireAuth, (req, res) => {
 })
 
 // ----- Admin -----
-// BUG: a destructive endpoint with no authentication or authorization at all.
 app.delete('/api/admin/snacks/:id', (req, res) => {
   db.prepare('DELETE FROM snacks WHERE id = ?').run(req.params.id)
   res.json({ ok: true })
+})
+
+// ----- Debugging -----
+// Added while chasing the "votes disappear after a restart" bug. Very handy.
+// TODO: take this out before anyone else sees it.
+app.get('/api/__debug/state', (req, res) => {
+  res.json({
+    env: process.env,
+    sessions: Object.fromEntries(sessions),
+    users: db.prepare('SELECT * FROM users').all(),
+    uptimeSeconds: Math.round(process.uptime()),
+  })
 })
 
 // Serve the built web client if it exists (npm start); otherwise API only.

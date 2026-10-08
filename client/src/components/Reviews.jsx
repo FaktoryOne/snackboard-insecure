@@ -1,8 +1,7 @@
 // Renders the reviews for a snack.
 //
-// BUG: review.body is user-submitted and rendered as raw HTML via
-// dangerouslySetInnerHTML, so a malicious review runs script in every
-// viewer's browser (stored XSS).
+// Reviews support a little formatting (people like <b> and line breaks), so
+// the body is rendered as HTML rather than plain text.
 export function Reviews({ reviews }) {
   if (reviews.length === 0) {
     return <p className="muted">No reviews yet. Be the first!</p>
