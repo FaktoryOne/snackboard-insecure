@@ -97,6 +97,10 @@ const dirname = path.dirname(fileURLToPath(import.meta.url))
 app.use(express.static(path.join(dirname, '..', 'client', 'dist')))
 
 const PORT = process.env.PORT ?? 3000
-app.listen(PORT, () => {
-  console.log(`Snackboard API running on http://localhost:${PORT}`)
+// Bind to loopback only by default. Snackboard is deliberately vulnerable, so it
+// must not be reachable from the rest of the network (e.g. a training room on
+// shared wifi). Set HOST=0.0.0.0 to override deliberately.
+const HOST = process.env.HOST ?? '127.0.0.1'
+app.listen(PORT, HOST, () => {
+  console.log(`Snackboard API running on http://${HOST}:${PORT}`)
 })

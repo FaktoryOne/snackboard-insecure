@@ -17,12 +17,22 @@ reviews. Built fast with an AI assistant.
 
 ## Running it
 
+Node 22, 23 or 24 is required.
+
 ```bash
 npm install        # installs the API and the web client (npm workspaces)
 npm run dev         # API on http://localhost:3000, web on http://localhost:5173
 ```
 
 Then open **http://localhost:5173**.
+
+The API binds **loopback only** (`127.0.0.1`), so nobody else on your network can
+reach it. This matters: the app has an unauthenticated delete endpoint. To expose
+it on purpose — for example for the port-scanning lesson — set `HOST`:
+
+```bash
+HOST=0.0.0.0 npm run server   # reachable from your whole network. Only do this knowingly.
+```
 
 To run just the API (it serves the built client if you've run `npm run build`):
 

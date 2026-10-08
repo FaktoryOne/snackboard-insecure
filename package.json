@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Snackboard — a deliberately insecure demo app for the Agentic School security module (M2). Do not deploy.",
   "engines": {
-    "node": ">=18"
+    "node": ">=22 <25"
   },
   "workspaces": [
     "client"
@@ -17,7 +17,7 @@
     "build": "npm --workspace client run build"
   },
   "dependencies": {
-    "better-sqlite3": "^11.8.1",
+    "better-sqlite3": "^12.11.1",
     "express": "^4.21.1",
     "pg": "^8.13.1",
     "resend": "^4.0.1"
