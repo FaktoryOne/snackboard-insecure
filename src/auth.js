@@ -4,7 +4,7 @@ import { db } from './db.js'
 const sha256 = (value) => createHash('sha256').update(value).digest('hex')
 
 // In-memory session store: token -> userId. Cleared on every restart.
-export const sessions = new Map()
+const sessions = new Map()
 
 export function login(req, res) {
   const { email, password } = req.body ?? {}
@@ -16,7 +16,8 @@ export function login(req, res) {
   }
   const token = randomBytes(16).toString('hex')
   sessions.set(token, user.id)
-  res.setHeader('Set-Cookie', `session=${token}; Path=/; SameSite=Lax`)
+  // HttpOnly keeps the token out of reach of any script on the page.
+  res.setHeader('Set-Cookie', `session=${token}; Path=/; HttpOnly; SameSite=Lax`)
   res.json({ id: user.id, email: user.email, name: user.name, role: user.role })
 }
 
@@ -34,4 +35,16 @@ export function requireAuth(req, res, next) {
   if (!user) return res.status(401).json({ error: 'Not authenticated' })
   req.user = user
   next()
+}
+
+/**
+ * Roles are read from the database on every request. A role claim that the
+ * client can edit — in localStorage, or in an unverified token — is a
+ * suggestion, not a control.
+ */
+export function requireRole(role) {
+  return (req, res, next) => {
+    if (req.user?.role !== role) return res.status(404).end()
+    next()
+  }
 }

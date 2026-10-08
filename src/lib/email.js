@@ -1,9 +1,15 @@
 import { Resend } from 'resend'
+import { env } from '../env.js'
 
-// TODO: move this to an environment variable before we launch.
-const resend = new Resend('re_8fK2mPx_9vQwL3nYtR5sHj7eDbA1cZxU')
+// The key comes from the environment. The one that used to be on this line is
+// burned — see SECURITY-ROTATIONS.md.
+const resend = env.resendApiKey ? new Resend(env.resendApiKey) : null
 
 export async function sendWelcomeEmail(to, name) {
+  if (!resend) {
+    console.warn('[email] RESEND_API_KEY is not set — skipping the welcome email.')
+    return
+  }
   try {
     await resend.emails.send({
       from: 'Snackboard <hello@snackboard.io>',

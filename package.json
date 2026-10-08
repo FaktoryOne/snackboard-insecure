@@ -21,10 +21,7 @@
   },
   "dependencies": {
     "express": "^4.21.1",
-    "left-pad": "1.3.0",
-    "pg": "^8.13.1",
-    "resend": "^4.0.1",
-    "ws": "8.11.0"
+    "resend": "^4.0.1"
   },
   "devDependencies": {
     "concurrently": "^9.1.0"
