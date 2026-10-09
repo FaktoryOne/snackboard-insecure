@@ -11,13 +11,12 @@
     "client"
   ],
   "scripts": {
-    "start": "node src/index.js",
-    "server": "node src/index.js",
+    "start": "node --experimental-sqlite src/index.js",
+    "server": "node --experimental-sqlite src/index.js",
     "dev": "concurrently --kill-others-on-fail -n api,web -c blue,magenta \"npm run server\" \"npm --workspace client run dev\"",
     "build": "npm --workspace client run build"
   },
   "dependencies": {
-    "better-sqlite3": "^12.11.1",
     "express": "^4.21.1",
     "pg": "^8.13.1",
     "resend": "^4.0.1"

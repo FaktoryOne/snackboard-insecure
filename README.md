@@ -11,15 +11,19 @@ reviews. Built fast with an AI assistant.
 
 ## Stack
 
-- **API** — Express + SQLite (`better-sqlite3`), in-memory and re-seeded on
-  every start. Lives in `src/`.
+- **API** — Express + SQLite (Node's built-in `node:sqlite`), in-memory and
+  re-seeded on every start. Lives in `src/`.
 - **Web** — React + Vite. Lives in `client/`.
 
 ## Running it
 
-**Node 22 or Node 24 is required. Node 23 does not work — it has no prebuilt
-native binary.** On Node 23 (or any other unsupported version) `npm install`
+**Node 22 or Node 24 is required.** Those are the two versions the course is
+taught and tested on. On any other version — including Node 23 — `npm install`
 stops at once with an `EBADENGINE` error naming the versions above.
+
+Everything Snackboard needs comes from the npm registry. There is no native
+build step and nothing is downloaded from anywhere else, so the install works
+behind a proxy that only allows the registry.
 
 ```bash
 npm install        # installs the API and the web client (npm workspaces)

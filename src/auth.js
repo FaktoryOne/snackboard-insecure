@@ -8,7 +8,9 @@ const sessions = new Map()
 
 export function login(req, res) {
   const { email, password } = req.body ?? {}
-  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email)
+  // `?? null` because a missing field is `undefined`, which SQLite cannot bind.
+  // A null email simply matches no row, so a body with no email is still a 401.
+  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email ?? null)
   if (!user || user.password_hash !== sha256(password ?? '')) {
     return res.status(401).json({ error: 'Invalid email or password' })
   }
