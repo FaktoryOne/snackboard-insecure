@@ -17,7 +17,9 @@ reviews. Built fast with an AI assistant.
 
 ## Running it
 
-Node 22, 23 or 24 is required.
+**Node 22 or Node 24 is required. Node 23 does not work — it has no prebuilt
+native binary.** On Node 23 (or any other unsupported version) `npm install`
+stops at once with an `EBADENGINE` error naming the versions above.
 
 ```bash
 npm install        # installs the API and the web client (npm workspaces)
@@ -25,6 +27,14 @@ npm run dev         # API on http://localhost:3000, web on http://localhost:5173
 ```
 
 Then open **http://localhost:5173**.
+
+Both halves must be up. If either the API or the web server fails to start —
+most often because something else already holds port 3000 — `npm run dev` stops
+both and shows you the error. Free the port, or move both ends together:
+
+```bash
+PORT=3001 npm run dev   # API on 3001, and the web client proxies to 3001
+```
 
 The API binds **loopback only** (`127.0.0.1`), so nobody else on your network can
 reach it. This matters: the app has an unauthenticated delete endpoint. To expose
