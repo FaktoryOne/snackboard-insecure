@@ -1,5 +1,5 @@
 import pkg from 'pg'
-import Database from 'better-sqlite3'
+import { DatabaseSync } from 'node:sqlite'
 import { seed } from './seed.js'
 
 const { Pool } = pkg
@@ -12,6 +12,8 @@ export const pool = new Pool({
 })
 
 // The app actually runs against a local in-memory SQLite database, re-seeded
-// on every start, so the demo needs no external services.
-export const db = new Database(':memory:')
+// on every start, so the demo needs no external services. SQLite comes from
+// Node's own `node:sqlite` module, so installing Snackboard needs nothing but
+// the npm registry — no native build, no downloaded binary.
+export const db = new DatabaseSync(':memory:')
 seed(db)

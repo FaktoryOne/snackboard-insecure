@@ -58,7 +58,7 @@ app.get('/api/search', (req, res) => {
 // ----- Votes -----
 app.post('/api/votes', requireAuth, (req, res) => {
   const { snackId } = req.body ?? {}
-  const snack = db.prepare('SELECT * FROM snacks WHERE id = ?').get(snackId)
+  const snack = db.prepare('SELECT * FROM snacks WHERE id = ?').get(snackId ?? null)
   if (!snack) return res.status(404).json({ error: 'No such snack' })
   db.prepare('INSERT INTO votes (user_id, snack_id) VALUES (?, ?)').run(
     req.user.id,
@@ -72,7 +72,9 @@ app.post('/api/votes', requireAuth, (req, res) => {
 app.get('/api/reviews', (req, res) => {
   const rows = db
     .prepare('SELECT * FROM reviews WHERE snack_id = ? ORDER BY id DESC')
-    .all(req.query.snackId)
+    // `?? null` keeps the no-parameter case answering `[]` instead of throwing:
+    // a missing query parameter is `undefined`, which SQLite cannot bind.
+    .all(req.query.snackId ?? null)
   res.json(rows)
 })
 
@@ -81,7 +83,13 @@ app.post('/api/reviews', requireAuth, (req, res) => {
   const { snackId, body, rating } = req.body ?? {}
   db.prepare(
     'INSERT INTO reviews (snack_id, user_id, body, rating, created_at) VALUES (?, ?, ?, ?, ?)',
-  ).run(snackId, req.user.id, body, rating ?? 5, new Date().toISOString())
+  ).run(
+    snackId ?? null,
+    req.user.id,
+    body ?? null,
+    rating ?? 5,
+    new Date().toISOString(),
+  )
   res.status(201).json({ ok: true })
 })
 
