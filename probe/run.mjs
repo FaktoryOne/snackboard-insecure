@@ -2,10 +2,10 @@
 //
 // Snackboard attack-probe runner.
 //
-//   npm run probe              run every probe against http://localhost:3000
+//   npm run probe              run every probe against http://127.0.0.1:3000
 //   npm run probe -- --list    list the probes without running them
 //   npm run probe -- --only A1,S2
-//   PROBE_TARGET=http://localhost:4000 npm run probe
+//   PROBE_TARGET=http://127.0.0.1:4000 npm run probe
 //
 // Exit code 0 = every attack was blocked.
 // Exit code 1 = at least one attack succeeded. This is what fails your build.
@@ -74,7 +74,7 @@ async function main() {
       console.error(
         `${C.red}Could not reach ${TARGET}/health.${C.off}\n` +
           `Start the app first:  npm start\n` +
-          `Or point the runner elsewhere:  PROBE_TARGET=http://localhost:4000 npm run probe`,
+          `Or point the runner elsewhere:  PROBE_TARGET=http://127.0.0.1:4000 npm run probe`,
       )
       return 2
     }
