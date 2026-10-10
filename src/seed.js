@@ -38,6 +38,17 @@ export function seed(db) {
       rating     INTEGER,
       created_at TEXT
     );
+    CREATE TABLE lists (
+      id      INTEGER PRIMARY KEY,
+      user_id INTEGER,
+      name    TEXT,
+      note    TEXT
+    );
+    CREATE TABLE list_items (
+      id       INTEGER PRIMARY KEY,
+      list_id  INTEGER,
+      snack_id INTEGER
+    );
   `)
 
   const insertUser = db.prepare(
@@ -65,4 +76,20 @@ export function seed(db) {
     5,
     new Date().toISOString(),
   )
+
+  // Private snack lists. A list belongs to exactly one user and the UI only
+  // ever shows you your own.
+  const insertList = db.prepare(
+    'INSERT INTO lists (id, user_id, name, note) VALUES (?, ?, ?, ?)',
+  )
+  insertList.run(1, 1, "Alice's desk drawer", 'Behind the monitor stand.')
+  insertList.run(2, 2, "Bob's Friday stash", 'Do not tell Alice about the chocolate.')
+
+  const insertListItem = db.prepare(
+    'INSERT INTO list_items (list_id, snack_id) VALUES (?, ?)',
+  )
+  insertListItem.run(1, 1)
+  insertListItem.run(1, 3)
+  insertListItem.run(2, 4)
+  insertListItem.run(2, 2)
 }
