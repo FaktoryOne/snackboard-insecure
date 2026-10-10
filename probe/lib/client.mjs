@@ -1,6 +1,10 @@
-// Tiny HTTP helper for probes. No dependencies — Node 20+ has fetch built in.
+// Tiny HTTP helper for probes. No dependencies — Node has fetch built in.
 
-export const TARGET = (process.env.PROBE_TARGET ?? 'http://localhost:3000').replace(
+// 127.0.0.1 rather than `localhost`. The API binds loopback IPv4 only, and on a
+// machine where `localhost` resolves to ::1 first, every probe would fail to
+// connect — which looks like a broken suite rather than an unreachable app.
+// Override with PROBE_TARGET when the app is somewhere else.
+export const TARGET = (process.env.PROBE_TARGET ?? 'http://127.0.0.1:3000').replace(
   /\/$/,
   '',
 )
