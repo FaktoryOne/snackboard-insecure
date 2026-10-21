@@ -92,8 +92,20 @@ async function loadProbes() {
  * guards nothing is worse than no run.
  */
 async function openSessions(probes) {
-  const wanted = probes.some((p) => p.sessions && !p.skip)
-  if (!wanted || CONFIG.users.length === 0) return {}
+  const needs = probes.filter((p) => p.sessions && !p.skip)
+  if (needs.length === 0) return {}
+
+  // Running these anonymously would report "every attack was blocked" against
+  // an app that is wide open. Refuse instead.
+  if (CONFIG.users.length === 0) {
+    throw new Error(
+      `PROBE_USERS is none, but these probes ask for a logged-in identity: ` +
+        `${needs.map((p) => p.id).join(', ')}.\n` +
+        `Give the runner logins, or drop \`sessions: true\` and write an attack that needs\n` +
+        `no identity. Running them anonymously would report every attack blocked against an\n` +
+        `app that is wide open.`,
+    )
+  }
 
   const ctx = {}
   for (const user of CONFIG.users) {
@@ -117,6 +129,7 @@ async function main() {
     console.log(USAGE)
     return 0
   }
+  if (CONFIG.usersError) throw CONFIG.usersError
 
   let probes = await loadProbes()
 

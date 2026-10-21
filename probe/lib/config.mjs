@@ -60,6 +60,18 @@ function parseUsers(raw) {
   })
 }
 
+// A bad PROBE_USERS must not throw while this module is still loading: the
+// runner's error handling is not up yet, so the process would exit 1 — "an
+// attack succeeded" — for what is a typo. Carry the error and let the runner
+// report it as exit 2, "the suite could not run".
+let users = []
+let usersError = null
+try {
+  users = parseUsers(process.env.PROBE_USERS)
+} catch (err) {
+  usersError = err
+}
+
 export const CONFIG = Object.freeze({
   // 127.0.0.1 rather than `localhost`. Snackboard's API binds loopback IPv4
   // only, and on a machine where `localhost` resolves to ::1 first every probe
@@ -82,7 +94,8 @@ export const CONFIG = Object.freeze({
 
   loginPath: withSlash(process.env.PROBE_LOGIN ?? '/api/login'),
   sessionCookie: process.env.PROBE_SESSION_COOKIE ?? 'session',
-  users: parseUsers(process.env.PROBE_USERS),
+  users,
+  usersError,
 
   // Static probes read the repository rather than the running app. By default
   // that is whatever directory `probe/` sits in, so copying `probe/` into your
