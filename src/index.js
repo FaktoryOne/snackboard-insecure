@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { db } from './db.js'
 import { login, requireAuth, sessions } from './auth.js'
 import { sendWelcomeEmail } from './lib/email.js'
+import { checkGitHubConnection } from './lib/github.js'
 import { createHash } from 'node:crypto'
 
 const sha256 = (value) => createHash('sha256').update(value).digest('hex')
@@ -110,6 +111,15 @@ app.post('/api/reviews', requireAuth, (req, res) => {
   res.status(201).json({ ok: true })
 })
 
+// ----- Integrations -----
+// Is the GitHub token in src/lib/github.js one GitHub still accepts? 200 here
+// means yes; 503 means either GitHub refused it or we could not ask. Read
+// `status` in the body to tell those two apart — they are not the same thing.
+app.get('/api/integrations/github', async (req, res) => {
+  const result = await checkGitHubConnection()
+  res.status(result.ok ? 200 : 503).json(result)
+})
+
 // ----- Admin -----
 app.delete('/api/admin/snacks/:id', (req, res) => {
   db.prepare('DELETE FROM snacks WHERE id = ?').run(req.params.id)
@@ -139,4 +149,12 @@ const PORT = process.env.PORT ?? 3000
 const HOST = process.env.HOST ?? '127.0.0.1'
 app.listen(PORT, HOST, () => {
   console.log(`Snackboard API running on http://${HOST}:${PORT}`)
+
+  // Check the GitHub integration on the way up, after the port is open, and
+  // never fatally: Snackboard has to start on a laptop with no network.
+  checkGitHubConnection().then((result) => {
+    const line = `[github] ${result.detail}`
+    if (result.ok) console.log(line)
+    else console.warn(line)
+  })
 })

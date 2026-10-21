@@ -26,6 +26,11 @@
 >
 > Every credential-shaped string in this repository is a **fake placeholder**.
 > None of them is live, and none of them has ever been live.
+>
+> The rotation exercise asks you to put **one real credential of your own** into
+> `src/lib/github.js` on purpose. Read [The practice
+> credential](#the-practice-credential) before you do — it must be a GitHub
+> token with **no scopes**, and the branch you commit it to is never pushed.
 
 A tiny snack-voting app: browse snacks, vote for your favourites, leave
 reviews. It was built fast with an AI assistant, it works, and it is riddled
@@ -97,6 +102,135 @@ It exits non-zero when an attack succeeds, so it fails a build. As shipped,
 every probe goes red. Your job over the next two days is to turn them green,
 and to add your own. See [`probe/README.md`](probe/README.md).
 
+## The practice credential
+
+The secrets lesson ends with **rotation**, and its check is a number, not a
+feeling: *make a request with the old credential and confirm it is rejected.*
+Neither credential Snackboard ships can give you that number.
+
+- The Postgres URL in `src/db.js` is pointed at a database that **does not
+  exist**. The app runs on in-memory SQLite. There is nothing to rotate and
+  nothing to ask.
+- The Resend key in `src/lib/email.js` is a fake placeholder, and a real one
+  would belong to **us**, not to you. You cannot revoke someone else's key, and
+  you should not try.
+
+So you bring your own. One token, on your own GitHub account, that you create
+and destroy yourself.
+
+### What it is, and what it can do
+
+Create a **classic personal access token** on your own GitHub account with
+**no scopes ticked at all** — Settings → Developer settings → Personal access
+tokens → Tokens (classic) → Generate new token. Give it a 7-day expiry and a
+name you will recognise, like `snackboard-practice`.
+
+**What that token can do: read the public information about your account that
+anyone can already read without logging in. That is the whole list.** A token
+with no scopes cannot read a private repository, push a commit, open an issue,
+read your private email addresses, or do anything at all inside an
+organisation. That is why it is safe to deliberately commit — and it is the
+only kind of credential this exercise is safe with.
+
+> [!WARNING]
+> **Do not use the token you use for `git push`.** That one has write access to
+> your repositories. Create a second, scopeless one for this, and check the
+> scope boxes are all empty before you click Generate.
+>
+> **Never push the branch you plant it on.** Work on a local branch —
+> `git checkout -b security/rotation-practice` — and do not `git push` it. The
+> token is powerless, so this is hygiene rather than an emergency, but the habit
+> is the thing being taught.
+
+### Planting it
+
+Replace the placeholder in `src/lib/github.js` with your token and commit it, as
+carelessly as the original developer would have:
+
+```bash
+git checkout -b security/rotation-practice
+# edit src/lib/github.js
+git commit -am "wire up the repo import"
+```
+
+It is now in your working tree *and* in your history, which is what the manual
+hunt and the history scan are for. `npm run probe -- --only S1,S2` will find it.
+
+### Verifying the app runs on it
+
+The integration is checked on start-up, and on demand:
+
+```bash
+npm start
+# [github] GitHub accepts the token, as your-username — and it carries no scopes
+
+curl -s http://127.0.0.1:3000/api/integrations/github | python3 -m json.tool
+```
+
+`200` with `"ok": true` means GitHub accepts the token. `503` means it does
+not — but read `status` in the body before you conclude anything: `401` is
+GitHub refusing the token, and `null` is "we never got an answer", which is your
+wifi and says nothing about the credential. Confusing those two is how people
+decide a key is dead when it is not.
+
+To prove to yourself that the token really is powerless, ask GitHub what it is
+allowed to do. An empty answer is the answer you want:
+
+```bash
+read -rsp 'token: ' T; echo; curl -s -D - -o /dev/null -H "Authorization: Bearer $T" https://api.github.com/user | grep -i '^x-oauth-scopes:'; unset T
+```
+
+`x-oauth-scopes:` with nothing after it means the token has no scopes: that is
+the whole of what it is permitted to do, written by GitHub rather than by us.
+**No output at all** means GitHub did not recognise the token — it sends that
+header only to a caller it has authenticated.
+
+### Rotating it, in the order that matters
+
+**Issue, deploy, verify, revoke.** Create a second scopeless token, put it in
+`src/lib/github.js`, restart, confirm the start-up line names your account
+again — and only then delete the first token at GitHub.
+
+### Reading the refusal
+
+One request, once. This is the artifact of the exercise: a status code you
+wrote down, not a belief about what happened.
+
+```bash
+read -rsp 'old token: ' T; echo; curl -s -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $T" https://api.github.com/user; unset T
+```
+
+`200` while the old token is live. `401` once you have revoked it. **Write the
+number down.** If you get anything else — `000`, or a timeout — you have not
+learned that the token is dead, you have learned that you could not reach
+GitHub. Fix that first and run it again.
+
+It prompts for the token rather than taking it on the command line so that the
+value does not end up in your shell history, and `unset` drops it afterwards.
+Pasting a credential into a terminal is the one place it is reasonable to do;
+leaving it in `~/.bash_history` is not.
+
+> [!NOTE]
+> **Run that line by hand, once, and leave it there.** It does not belong in
+> your probe suite or in any script that runs on every build: a check that fires
+> a revoked credential at a provider on every push is noise, and a dead token
+> sitting in a repository is a thing somebody has to explain later. The probe
+> that *is* worth keeping is `S2` — it checks that you wrote the rotation down.
+
+### Writing it down
+
+`S2` goes green when every credential your history has ever contained has a
+SHA-256 fingerprint recorded in `SECURITY-ROTATIONS.md`. Create that file and
+add your old token to it:
+
+```bash
+printf '%s' 'ghp_the_token_you_just_revoked' | sha256sum | cut -c1-16
+npm run probe -- --only S2
+```
+
+The fingerprint, never the token. The point of the ledger is that it proves you
+handled the key without putting it back into the repository.
+
 ## What the API exposes
 
 | Method & path                  | What it does                    |
@@ -113,6 +247,7 @@ and to add your own. See [`probe/README.md`](probe/README.md).
 | `POST /api/votes`              | Vote for a snack                |
 | `GET /api/reviews?snackId=`    | Reviews for a snack             |
 | `POST /api/reviews`            | Post a review                   |
+| `GET /api/integrations/github` | Is the GitHub token still live? |
 | `DELETE /api/admin/snacks/:id` | Delete a snack                  |
 
 This table is the one the original developer wrote. Part of the exercise is
