@@ -5,6 +5,13 @@ name: security-probes
 #
 # Copy this file into your own repository. The only things you normally need
 # to change are the Node version and how your app is started.
+#
+# This runs Snackboard's eleven probes. In your own repository you want the
+# probes you wrote instead — set PROBE_DIR on the last step:
+#
+#   - run: npm run test:security
+#     env:
+#       PROBE_DIR: yours          # or probes,yours to run both
 
 on:
   pull_request:

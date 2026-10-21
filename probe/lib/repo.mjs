@@ -5,13 +5,12 @@ import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { CONFIG } from './config.mjs'
 
-export const REPO_ROOT = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  '..',
-  '..',
-)
+// Whatever directory `probe/` sits in, so copying `probe/` into your own
+// project is enough to make the static probes read your tree. `PROBE_REPO`
+// overrides it when `probe/` lives somewhere other than the repository root.
+export const REPO_ROOT = CONFIG.repoRoot
 
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', 'coverage'])
 const SKIP_FILES = new Set(['package-lock.json', 'pnpm-lock.yaml', 'yarn.lock'])
