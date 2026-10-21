@@ -60,9 +60,14 @@ npm run probe -- --verbose     # show evidence for the ones that passed too
 npm run test:security          # start the app, probe, stop the app (for CI)
 ```
 
-Exit codes: `0` every attack blocked · `1` an attack succeeded · `2` the suite
-could not run (app unreachable, no probes, a probe threw, a login it needed
-failed). A `2` never means "you are fine" — it means the run proved nothing.
+Exit codes: `0` every attack that ran was blocked · `1` an attack succeeded ·
+`2` nothing was judged (app unreachable, no probes, **every probe skipped**, a
+probe threw, a login it needed failed). A `2` never means "you are fine" — it
+means the run proved nothing.
+
+A fresh copy of `yours/_template.mjs` still carries `skip: true`, so a run that
+only finds that is a `2` and says so. Skips alongside real results keep their
+exit code, but the last line counts them rather than claiming a clean sweep.
 
 ## Reading the output
 

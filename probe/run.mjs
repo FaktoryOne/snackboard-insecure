@@ -10,9 +10,10 @@
 //   node probe/run.mjs --target http://127.0.0.1:8000
 //   node probe/run.mjs --help
 //
-// Exit code 0 = every attack was blocked.
+// Exit code 0 = every attack that ran was blocked, and at least one ran.
 // Exit code 1 = at least one attack succeeded. This is what fails your build.
-// Exit code 2 = the suite could not run, so the result means nothing.
+// Exit code 2 = nothing was judged, so the result means nothing. No probes
+//               loaded, none of them ran, a probe threw, or the app is down.
 //
 // Only ever point this at an application you own or have written permission
 // to test.
@@ -48,7 +49,7 @@ Environment (all optional — defaults describe Snackboard):
   PROBE_USERS            name=email:password,...  or   none
   PROBE_REPO             repo root for static probes   the parent of probe/
 
-Exit 0 every attack blocked · 1 an attack succeeded · 2 the suite could not run.
+Exit 0 every attack that ran was blocked · 1 an attack succeeded · 2 nothing was judged.
 `.trim()
 
 async function loadProbes() {
@@ -226,10 +227,40 @@ async function main() {
     console.log(`${C.red}A probe threw. Fix the probe before trusting the result.${C.off}`)
     return 2
   }
+
+  // Nothing reached a verdict, so there is nothing to be green about. Exiting 0
+  // here would end the run on "Every attack was blocked" against an app that
+  // nobody attacked. That is the same refusal as the empty-suite branch above:
+  // no verdicts is no proof, whether because no probe loaded or because none of
+  // them ran.
+  if (blocked === 0 && vulnerable === 0 && skipped > 0) {
+    console.error(
+      `${C.red}Nothing was judged. ${skipped === 1 ? 'The one probe' : `All ${skipped} probes`} ` +
+        `skipped, no attack ran, and this run proves nothing.${C.off}\n` +
+        `The usual cause is the \`skip: true\` line in a probe copied from yours/_template.mjs —\n` +
+        `delete it, write the attack, and run again. A probe can also skip itself when state it\n` +
+        `needs is missing; the SKIP output above says why.`,
+    )
+    return 2
+  }
+
   if (vulnerable > 0) {
     console.log(`${C.red}At least one attack worked. This build is not safe to ship.${C.off}`)
     return 1
   }
+
+  // Some attacks were blocked and some never ran. Still exit 0 — every attack
+  // that reached a verdict failed — but do not let the verdict line read as a
+  // clean bill of health, because the skipped ones guarded nothing.
+  if (skipped > 0) {
+    console.log(
+      `${C.green}Every attack that ran was blocked.${C.off} ` +
+        `${skipped === 1 ? '1 probe' : `${skipped} probes`} skipped and proved nothing — ` +
+        `read the SKIP output above before you call this green.`,
+    )
+    return 0
+  }
+
   console.log(`${C.green}Every attack was blocked.${C.off}`)
   return 0
 }
