@@ -5,6 +5,7 @@ export default {
   title: "Alice reads Bob's user record by guessing the id",
   topic: 'Authorization — IDOR on a read route',
   kind: 'http',
+  sessions: true, // the attack needs a logged-in identity
 
   async attack({ alice }) {
     const res = await get('/api/users/2', { session: alice })

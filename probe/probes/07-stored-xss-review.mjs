@@ -5,6 +5,7 @@ export default {
   title: 'A review containing a script payload is stored and served back as live HTML',
   topic: 'Input validation — stored cross-site scripting',
   kind: 'http',
+  sessions: true, // the attack needs a logged-in identity
 
   async attack({ alice }) {
     // A payload that is inert as text and dangerous as HTML. Nothing here

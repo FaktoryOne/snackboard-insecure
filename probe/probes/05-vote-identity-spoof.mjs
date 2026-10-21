@@ -5,6 +5,7 @@ export default {
   title: 'Alice sends a vote carrying Bob’s user id and the server accepts it',
   topic: 'Authorization — the write path takes identity from the request body',
   kind: 'http',
+  sessions: true, // the attack needs a logged-in identity
 
   async attack({ alice }) {
     // The UI never sends `userId` — the session already says who you are.

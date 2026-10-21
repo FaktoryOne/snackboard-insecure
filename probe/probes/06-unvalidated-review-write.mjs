@@ -5,6 +5,7 @@ export default {
   title: 'A review with an impossible rating, a snack that does not exist and a 100 kB body is stored',
   topic: 'Input validation — a write endpoint with no schema at the boundary',
   kind: 'http',
+  sessions: true, // the attack needs a logged-in identity
 
   async attack({ alice }) {
     const nonsense = {
