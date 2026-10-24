@@ -11,7 +11,12 @@ export default {
     // Take the least-popular snack so the rest of the run still has data.
     const target = before.json?.at(-1)
     if (!target) {
-      return { worked: false, evidence: 'no snacks to delete — probe inconclusive' }
+      // Inconclusive, and that is not the same thing as blocked. Reporting it
+      // as blocked would turn an empty database into a clean bill of health.
+      return {
+        skipped: true,
+        evidence: 'no snacks left to delete — restart the app and run again',
+      }
     }
 
     const res = await del(`/api/admin/snacks/${target.id}`) // no session at all

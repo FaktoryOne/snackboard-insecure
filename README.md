@@ -95,12 +95,22 @@ Alice and Bob are there for exactly that.
 ```bash
 npm start              # terminal 1
 npm run probe          # terminal 2 — every attack, one command
+npm run probe:yours    # just the probes you wrote, in probe/yours/
 npm run test:security  # starts the app, probes it, shuts it down (for CI)
 ```
 
 It exits non-zero when an attack succeeds, so it fails a build. As shipped,
-every probe goes red. Your job over the next two days is to turn them green,
-and to add your own. See [`probe/README.md`](probe/README.md).
+every probe goes red. Your job is to turn them green, and to add your own.
+
+**It works against your own app too**, with no test framework and no install —
+`probe/` is plain Node and nothing else:
+
+```bash
+cp -r probe /path/to/your-app/probe
+cd /path/to/your-app && PROBE_TARGET=http://127.0.0.1:8000 node probe/run.mjs --dir yours
+```
+
+See [`probe/README.md`](probe/README.md).
 
 ## The practice credential
 

@@ -5,6 +5,7 @@ export default {
   title: "Alice reads Bob's private snack list",
   topic: 'Authorization — IDOR on a second read route',
   kind: 'http',
+  sessions: true, // the attack needs a logged-in identity
 
   async attack({ alice }) {
     const res = await get('/api/lists/2', { session: alice })
