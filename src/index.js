@@ -151,15 +151,36 @@ app.delete('/api/admin/snacks/:id', (req, res) => {
 // So: the flaw stays, the teaching stays, and your secrets do not leave the
 // machine because of a lesson about not leaking secrets.
 // ---------------------------------------------------------------------------
+// Masked on the name, because that is what catches the conventional ones.
 const CREDENTIAL_NAME = /TOKEN|KEY|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH|SESSION|COOKIE|DSN|URL|URI/i
-const CREDENTIAL_IN_URL = /^[a-z+]+:\/\/[^\s:/@]+:[^\s:/@]+@/i
+
+// ...and on the value, because the name is not enough. `OPENAI=sk-proj-…`
+// matches none of the words above, and somebody's shell really does look like
+// that. These are the shapes `probe/lib/repo.mjs` already knows, which is the
+// honest test of whether a string is credential-shaped: if the scanner you are
+// about to run over this repository would call it a secret, this route should
+// not be handing it out.
+const CREDENTIAL_VALUE = [
+  /^[a-z+]+:\/\/[^\s:/@]+:[^\s:/@]+@/i, // a password in a connection URL
+  /\bgh[pousr]_[A-Za-z0-9]{20,}\b/, // GitHub token
+  /\bgithub_pat_[A-Za-z0-9_]{20,}\b/, // GitHub fine-grained token
+  /\bre_[A-Za-z0-9_]{16,}\b/, // Resend
+  /\bsk-[A-Za-z0-9_-]{16,}\b/, // OpenAI and friends
+  /\bsk_(live|test)_[A-Za-z0-9]{10,}\b/, // Stripe
+  /\bAKIA[0-9A-Z]{16}\b/, // AWS access key id
+  /\bxox[baprs]-[A-Za-z0-9-]{10,}\b/, // Slack
+  /\bey[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\./, // a JWT
+  /-----BEGIN [A-Z ]*PRIVATE KEY-----/, // a private key
+]
+
 const REDACTED = '[redacted by Snackboard — not part of the flaw]'
 
 function maskEnvironment(environment) {
   return Object.fromEntries(
     Object.entries(environment).map(([name, value]) => {
       if (typeof value !== 'string' || value === '') return [name, value]
-      const looksSecret = CREDENTIAL_NAME.test(name) || CREDENTIAL_IN_URL.test(value)
+      const looksSecret =
+        CREDENTIAL_NAME.test(name) || CREDENTIAL_VALUE.some((re) => re.test(value))
       return [name, looksSecret ? REDACTED : value]
     }),
   )
