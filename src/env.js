@@ -6,9 +6,9 @@
 const REQUIRED = []
 const OPTIONAL = ['RESEND_API_KEY']
 
-// Optional too, but the code that uses them says something more useful than
-// this file can, so they are not warned about twice. See src/lib/github.js.
-const OPTIONAL_REPORTED_ELSEWHERE = ['GITHUB_TOKEN']
+// GITHUB_TOKEN is optional too, but it is deliberately not in OPTIONAL: the
+// start-up check in src/lib/github.js reports it in more useful words than this
+// file can, and two lines saying the same thing is noise on the way up.
 
 const missing = REQUIRED.filter((name) => !process.env[name])
 if (missing.length > 0) {
@@ -45,7 +45,7 @@ export const env = {
 
   // The practice credential for the rotation exercise. Absent is a normal
   // state: the app runs fine without it and says so once on the way up.
-  githubToken: optional(OPTIONAL_REPORTED_ELSEWHERE[0]),
+  githubToken: optional('GITHUB_TOKEN'),
   // Overridable so the connection check can be pointed at a stub when there is
   // no network.
   githubApi: optional('GITHUB_API') ?? 'https://api.github.com',
