@@ -60,6 +60,9 @@ export function git(args) {
  */
 export const SECRET_PATTERNS = [
   { name: 'Resend API key', re: /\bre_[A-Za-z0-9_]{16,}\b/ },
+  // ghp_ classic PAT, gho_/ghu_/ghs_/ghr_ the OAuth and app token flavours.
+  { name: 'GitHub token', re: /\bgh[pousr]_[A-Za-z0-9]{36,}\b/ },
+  { name: 'GitHub fine-grained token', re: /\bgithub_pat_[A-Za-z0-9_]{32,}\b/ },
   { name: 'Stripe secret key', re: /\bsk_live_[A-Za-z0-9]{10,}\b/ },
   { name: 'Password in a connection URL', re: /\b[a-z+]+:\/\/[^\s:/@]+:[^\s:/@]+@/ },
   { name: 'AWS access key id', re: /\bAKIA[0-9A-Z]{16}\b/ },

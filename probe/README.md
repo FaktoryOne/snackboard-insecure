@@ -117,6 +117,23 @@ Three rules that make a probe worth keeping:
 `admin` on Snackboard. You need at least two to prove that one user cannot
 reach another's data.
 
+### One thing that is deliberately not a probe
+
+The rotation exercise ends with a single request that fires a **revoked**
+credential at GitHub and reads the `401`. That one is run by hand, once, and it
+does **not** belong here or in any script that runs on every build:
+
+- It can only ever pass once. A check that cannot fail twice is not a check.
+- It sends a dead credential to a third party on every run, which is noise at
+  best.
+- It leaves a revoked token sitting in a repository, which is a thing somebody
+  has to explain later.
+
+The probe that *is* worth keeping from that exercise is `S2`: it checks that the
+rotation was **written down**, by fingerprint, in `SECURITY-ROTATIONS.md`. See
+"The practice credential" in the [top-level README](../README.md), which also
+names the exact file and line the credential gets planted into.
+
 ## Wiring it into CI
 
 Copy `.github/workflows/security-probes.yml` and the `test:security` script

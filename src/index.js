@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { db } from './db.js'
 import { login, requireAuth, sessions } from './auth.js'
 import { sendWelcomeEmail } from './lib/email.js'
+import { checkGitHubConnection } from './lib/github.js'
 import { createHash } from 'node:crypto'
 
 const sha256 = (value) => createHash('sha256').update(value).digest('hex')
@@ -110,6 +111,15 @@ app.post('/api/reviews', requireAuth, (req, res) => {
   res.status(201).json({ ok: true })
 })
 
+// ----- Integrations -----
+// Is the GitHub token in src/lib/github.js one GitHub still accepts? 200 here
+// means yes; 503 means either GitHub refused it or we could not ask. Read
+// `status` in the body to tell those two apart — they are not the same thing.
+app.get('/api/integrations/github', async (req, res) => {
+  const result = await checkGitHubConnection()
+  res.status(result.ok ? 200 : 503).json(result)
+})
+
 // ----- Admin -----
 app.delete('/api/admin/snacks/:id', (req, res) => {
   db.prepare('DELETE FROM snacks WHERE id = ?').run(req.params.id)
@@ -119,9 +129,66 @@ app.delete('/api/admin/snacks/:id', (req, res) => {
 // ----- Debugging -----
 // Added while chasing the "votes disappear after a restart" bug. Very handy.
 // TODO: take this out before anyone else sees it.
+
+// ---------------------------------------------------------------------------
+// The mask below is the one place this app is deliberately careful, and it is
+// not part of the flaw you are here to fix.
+//
+// This route is a planted flaw: it hands the whole process environment, every
+// live session token and every user row to an anonymous caller, and finding
+// and deleting it is the exercise. That is all still true — probe `E1` is
+// still red.
+//
+// What the mask stops is different. The rotation exercise asks you to put a
+// *real* credential of your own into a git-ignored `.env`, and `npm start`
+// loads that file into this process's environment. Without the mask, this
+// route would hand your own credential — and anything else your shell happens
+// to export — to anyone who can reach this port, including through this app's
+// own stored-XSS flaw, which runs on the same origin. The exercise is safe
+// because the practice token carries no scopes; that safety was never meant to
+// extend to the rest of your environment.
+//
+// So: the flaw stays, the teaching stays, and your secrets do not leave the
+// machine because of a lesson about not leaking secrets.
+// ---------------------------------------------------------------------------
+// Masked on the name, because that is what catches the conventional ones.
+const CREDENTIAL_NAME = /TOKEN|KEY|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH|SESSION|COOKIE|DSN|URL|URI/i
+
+// ...and on the value, because the name is not enough. `OPENAI=sk-proj-…`
+// matches none of the words above, and somebody's shell really does look like
+// that. These are the shapes `probe/lib/repo.mjs` already knows, which is the
+// honest test of whether a string is credential-shaped: if the scanner you are
+// about to run over this repository would call it a secret, this route should
+// not be handing it out.
+const CREDENTIAL_VALUE = [
+  /^[a-z+]+:\/\/[^\s:/@]+:[^\s:/@]+@/i, // a password in a connection URL
+  /\bgh[pousr]_[A-Za-z0-9]{20,}\b/, // GitHub token
+  /\bgithub_pat_[A-Za-z0-9_]{20,}\b/, // GitHub fine-grained token
+  /\bre_[A-Za-z0-9_]{16,}\b/, // Resend
+  /\bsk-[A-Za-z0-9_-]{16,}\b/, // OpenAI and friends
+  /\bsk_(live|test)_[A-Za-z0-9]{10,}\b/, // Stripe
+  /\bAKIA[0-9A-Z]{16}\b/, // AWS access key id
+  /\bxox[baprs]-[A-Za-z0-9-]{10,}\b/, // Slack
+  /\bey[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\./, // a JWT
+  /-----BEGIN [A-Z ]*PRIVATE KEY-----/, // a private key
+]
+
+const REDACTED = '[redacted by Snackboard — not part of the flaw]'
+
+function maskEnvironment(environment) {
+  return Object.fromEntries(
+    Object.entries(environment).map(([name, value]) => {
+      if (typeof value !== 'string' || value === '') return [name, value]
+      const looksSecret =
+        CREDENTIAL_NAME.test(name) || CREDENTIAL_VALUE.some((re) => re.test(value))
+      return [name, looksSecret ? REDACTED : value]
+    }),
+  )
+}
+
 app.get('/api/__debug/state', (req, res) => {
   res.json({
-    env: process.env,
+    env: maskEnvironment(process.env),
     sessions: Object.fromEntries(sessions),
     users: db.prepare('SELECT * FROM users').all(),
     uptimeSeconds: Math.round(process.uptime()),
@@ -139,4 +206,15 @@ const PORT = process.env.PORT ?? 3000
 const HOST = process.env.HOST ?? '127.0.0.1'
 app.listen(PORT, HOST, () => {
   console.log(`Snackboard API running on http://${HOST}:${PORT}`)
+
+  // Check the practice credential on the way up, after the port is open, and
+  // never fatally. Snackboard has to start on a laptop with no network, and on
+  // a laptop where nobody has planted a credential yet — which is every laptop
+  // in the room on the first run of the morning. One line, four possible words,
+  // and `refused` is the one the rotation exercise watches appear.
+  checkGitHubConnection().then((result) => {
+    const line = `[github] practice credential: ${result.verdict} — ${result.detail}`
+    if (result.ok) console.log(line)
+    else console.warn(line)
+  })
 })
