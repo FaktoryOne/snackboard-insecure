@@ -25,6 +25,7 @@ printf '%s' "$THE_OLD_KEY" | sha256sum | cut -c1-16
 | `deae965c3cf8b777` | Resend API key               | `src/lib/email.js`          | 2026-10-08 | Snackboard maintainers |
 | `de7f26b819e8c6c7` | Stripe secret key            | `src/checkout.js` (deleted) | 2026-10-08 | Snackboard maintainers |
 | `c20e042e6c6a8d38` | Postgres password, in a URL  | `src/db.js`                 | 2026-10-08 | Snackboard maintainers |
+| `6a98c07370af3f10` | GitHub token placeholder     | `src/lib/github.js`         | 2026-10-24 | Snackboard maintainers |
 
 ## The order that matters
 
@@ -41,3 +42,10 @@ Every credential listed above was a **fake placeholder** invented for teaching.
 None of them was ever live at any provider. The entries are here because the
 *procedure* is the thing being taught, and because the `S2` probe is only
 honest if it is checking a real ledger.
+
+The one exception is the row you are going to add yourself. The rotation
+exercise has you plant a **real** credential of your own — a GitHub token with
+no scopes — revoke it, and record it here. That row is the only one in this
+file that was ever a live credential, and writing it is the point of the
+exercise: the fingerprint proves you closed the leak at the provider without
+putting the value back into the repository.
