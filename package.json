@@ -11,8 +11,8 @@
     "client"
   ],
   "scripts": {
-    "start": "node --experimental-sqlite src/index.js",
-    "server": "node --experimental-sqlite src/index.js",
+    "start": "node --env-file-if-exists=.env --experimental-sqlite src/index.js",
+    "server": "node --env-file-if-exists=.env --experimental-sqlite src/index.js",
     "dev": "concurrently --kill-others-on-fail -n api,web -c blue,magenta \"npm run server\" \"npm --workspace client run dev\"",
     "build": "npm --workspace client run build",
     "probe": "node probe/run.mjs",

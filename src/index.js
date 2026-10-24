@@ -150,10 +150,13 @@ const HOST = process.env.HOST ?? '127.0.0.1'
 app.listen(PORT, HOST, () => {
   console.log(`Snackboard API running on http://${HOST}:${PORT}`)
 
-  // Check the GitHub integration on the way up, after the port is open, and
-  // never fatally: Snackboard has to start on a laptop with no network.
+  // Check the practice credential on the way up, after the port is open, and
+  // never fatally. Snackboard has to start on a laptop with no network, and on
+  // a laptop where nobody has planted a credential yet — which is every laptop
+  // in the room on the first run of the morning. One line, four possible words,
+  // and `refused` is the one the rotation exercise watches appear.
   checkGitHubConnection().then((result) => {
-    const line = `[github] ${result.detail}`
+    const line = `[github] practice credential: ${result.verdict} — ${result.detail}`
     if (result.ok) console.log(line)
     else console.warn(line)
   })
