@@ -6,7 +6,33 @@
 export const GITHUB_TOKEN = 'ghp_PLACEHOLDERnotArealTokenSwapMeIn0000'
 
 // Overridable so the check can be pointed at a stub when there is no network.
-const GITHUB_API = process.env.GITHUB_API ?? 'https://api.github.com'
+//
+// Checked rather than trusted, because this is the host the practice
+// credential's `Authorization` header is sent to, and it is now settable from a
+// `.env` in the working tree. `https` anywhere, plain `http` only on loopback
+// so the offline stub still works. Anything else and we keep the default
+// rather than mail somebody's token to it.
+const GITHUB_API = safeApiBase(process.env.GITHUB_API)
+
+function safeApiBase(value) {
+  const fallback = 'https://api.github.com'
+  if (!value) return fallback
+  let url
+  try {
+    url = new URL(value)
+  } catch {
+    console.warn(`[github] GITHUB_API is not a URL (${value}) — using ${fallback}`)
+    return fallback
+  }
+  const loopback = ['localhost', '127.0.0.1', '[::1]', '::1'].includes(url.hostname)
+  if (url.protocol === 'https:' || (url.protocol === 'http:' && loopback)) {
+    return value.replace(/\/$/, '')
+  }
+  console.warn(
+    `[github] refusing to send the token to ${value} — https, or http on loopback, only. Using ${fallback}`,
+  )
+  return fallback
+}
 
 // Short, because this runs on the way up and on a page load. A training room's
 // wifi is not a reason for the app to hang.
@@ -79,6 +105,32 @@ export function practiceCredential() {
 export async function checkGitHubConnection(token = undefined) {
   const resolved = token === undefined ? practiceCredential() : { token, source: 'the caller' }
 
+  if (cache && cache.token === resolved.token && Date.now() - cache.at < CACHE_TTL_MS) {
+    return { ...cache.result, cached: true }
+  }
+
+  const result = await askGitHub(resolved)
+  cache = { token: resolved.token, at: Date.now(), result }
+  return { ...result, cached: false }
+}
+
+// A short cache, so one inbound request cannot become one outbound request.
+//
+// `GET /api/integrations/github` is reachable without a session on this branch,
+// so without this a caller could make Snackboard spend a credentialed GitHub
+// call per request. GitHub allows 60 unauthenticated requests an hour **per
+// IP**, and a training room behind one office NAT shares that single bucket —
+// so an app that amplifies like this does not only burn its own quota, it takes
+// out everybody else's rotation exercise with it.
+//
+// Ten seconds, because the exercise restarts the app between steps, which
+// clears this, and reads the real refusal with `curl` straight at GitHub rather
+// than through this route. Every answer carries `cached`, so a cached one can
+// never be mistaken for a fresh one.
+const CACHE_TTL_MS = 10_000
+let cache = null
+
+async function askGitHub(resolved) {
   if (!resolved.token) {
     return {
       ok: false,

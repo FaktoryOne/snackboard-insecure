@@ -129,9 +129,45 @@ app.delete('/api/admin/snacks/:id', (req, res) => {
 // ----- Debugging -----
 // Added while chasing the "votes disappear after a restart" bug. Very handy.
 // TODO: take this out before anyone else sees it.
+
+// ---------------------------------------------------------------------------
+// The mask below is the one place this app is deliberately careful, and it is
+// not part of the flaw you are here to fix.
+//
+// This route is a planted flaw: it hands the whole process environment, every
+// live session token and every user row to an anonymous caller, and finding
+// and deleting it is the exercise. That is all still true — probe `E1` is
+// still red.
+//
+// What the mask stops is different. The rotation exercise asks you to put a
+// *real* credential of your own into a git-ignored `.env`, and `npm start`
+// loads that file into this process's environment. Without the mask, this
+// route would hand your own credential — and anything else your shell happens
+// to export — to anyone who can reach this port, including through this app's
+// own stored-XSS flaw, which runs on the same origin. The exercise is safe
+// because the practice token carries no scopes; that safety was never meant to
+// extend to the rest of your environment.
+//
+// So: the flaw stays, the teaching stays, and your secrets do not leave the
+// machine because of a lesson about not leaking secrets.
+// ---------------------------------------------------------------------------
+const CREDENTIAL_NAME = /TOKEN|KEY|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH|SESSION|COOKIE|DSN|URL|URI/i
+const CREDENTIAL_IN_URL = /^[a-z+]+:\/\/[^\s:/@]+:[^\s:/@]+@/i
+const REDACTED = '[redacted by Snackboard — not part of the flaw]'
+
+function maskEnvironment(environment) {
+  return Object.fromEntries(
+    Object.entries(environment).map(([name, value]) => {
+      if (typeof value !== 'string' || value === '') return [name, value]
+      const looksSecret = CREDENTIAL_NAME.test(name) || CREDENTIAL_IN_URL.test(value)
+      return [name, looksSecret ? REDACTED : value]
+    }),
+  )
+}
+
 app.get('/api/__debug/state', (req, res) => {
   res.json({
-    env: process.env,
+    env: maskEnvironment(process.env),
     sessions: Object.fromEntries(sessions),
     users: db.prepare('SELECT * FROM users').all(),
     uptimeSeconds: Math.round(process.uptime()),

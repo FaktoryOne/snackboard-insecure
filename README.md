@@ -213,6 +213,22 @@ not — but read `verdict` and `status` in the body before you conclude anything
 `"refused"` with `401` is GitHub refusing the token, and `"no answer"` with
 `null` is your wifi.
 
+The answer is cached for ten seconds and says so in `"cached"`. If you need a
+fresh one, restart the app — which is what the rotation exercise has you do
+anyway, and why **the start-up line, not this route, is the thing you read for
+"verify"**. On the fixed version of this app the route needs an admin session;
+here it needs nothing, which is itself one of the things wrong with it.
+
+> [!NOTE]
+> **Your `.env` is loaded into this process, and this app has a debug route that
+> hands the environment to anyone who asks.** That route is one of the flaws you
+> are here to find, so it is still there — but it **masks values whose variable
+> name looks like a credential**, including your practice token and anything
+> else your shell exports. That mask is the one place this app is deliberately
+> careful, it is commented as such in `src/index.js`, and it is not part of the
+> flaw. You are committing a powerless token on purpose; that was never meant to
+> put the rest of your environment on the network.
+
 To prove to yourself that the token really is powerless, ask GitHub what it is
 allowed to do. An empty answer is the answer you want:
 
