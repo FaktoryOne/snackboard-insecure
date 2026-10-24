@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { db } from './db.js'
 import { login, requireAuth, requireRole } from './auth.js'
 import { sendWelcomeEmail } from './lib/email.js'
+import { checkGitHubConnection } from './lib/github.js'
 import { validate, escapeHtml } from './validate.js'
 import { createHash } from 'node:crypto'
 
@@ -171,6 +172,15 @@ app.post('/api/reviews', (req, res) => {
   res.status(201).json({ ok: true })
 })
 
+// ----- Integrations -----
+// Is the GitHub token in src/lib/github.js one GitHub still accepts? 200 here
+// means yes; 503 means either GitHub refused it or we could not ask. Read
+// `status` in the body to tell those two apart — they are not the same thing.
+app.get('/api/integrations/github', async (req, res) => {
+  const result = await checkGitHubConnection()
+  res.status(result.ok ? 200 : 503).json(result)
+})
+
 // ----- Admin -----
 // Authenticated by the deny-by-default middleware, then checked for the role.
 app.delete('/api/admin/snacks/:id', requireRole('admin'), (req, res) => {
@@ -203,4 +213,15 @@ const PORT = process.env.PORT ?? 3000
 const HOST = process.env.HOST ?? '127.0.0.1'
 app.listen(PORT, HOST, () => {
   console.log(`Snackboard API running on http://${HOST}:${PORT}`)
+
+  // Check the practice credential on the way up, after the port is open, and
+  // never fatally. Snackboard has to start on a laptop with no network, and on
+  // a laptop where nobody has planted a credential yet — which is every laptop
+  // in the room on the first run of the morning. One line, four possible words,
+  // and `refused` is the one the rotation exercise watches appear.
+  checkGitHubConnection().then((result) => {
+    const line = `[github] practice credential: ${result.verdict} — ${result.detail}`
+    if (result.ok) console.log(line)
+    else console.warn(line)
+  })
 })
