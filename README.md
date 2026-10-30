@@ -104,6 +104,16 @@ and to add your own. See [`probe/README.md`](probe/README.md).
 
 ## The practice credential
 
+> [!NOTE]
+> **This section is written for the branch the participant works on, and this is
+> the finished one.** It is kept here so a trainer can read the exercise beside
+> the answer, but take the steps below as a description rather than as
+> instructions: there is no planted token on this branch to replace,
+> `src/lib/github.js` reads the credential from the environment only, and the
+> rotation it asks for has already been done and written down in
+> `SECURITY-ROTATIONS.md`. What still applies here exactly as written is the
+> four start-up words, the rotation order, and reading the refusal.
+
 The secrets lesson ends with **rotation**, and its check is a number, not a
 feeling: *make a request with the old credential and confirm it is rejected.*
 Neither credential Snackboard ships can give you that number.
