@@ -397,7 +397,9 @@ SHA-256 fingerprint recorded in `SECURITY-ROTATIONS.md`. Create that file and
 add your old token to it:
 
 ```bash
-printf '%s' 'ghp_the_token_you_just_revoked' | sha256sum | cut -c1-16
+read -rs OLD_TOKEN   # paste the revoked token; nothing is echoed
+printf '%s' "$OLD_TOKEN" | sha256sum | cut -c1-16
+unset OLD_TOKEN
 npm run probe -- --only S2
 ```
 

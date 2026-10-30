@@ -26,11 +26,14 @@ function safeApiBase(value) {
     return fallback
   }
   const loopback = ['localhost', '127.0.0.1', '[::1]', '::1'].includes(url.hostname)
-  if (url.protocol === 'https:' || (url.protocol === 'http:' && loopback)) {
+  // The host is pinned, not only the scheme. An `https:` URL to any other host
+  // is still this token in an Authorization header, addressed to a stranger.
+  const allowedHost = url.hostname === 'api.github.com' || loopback
+  if (allowedHost && (url.protocol === 'https:' || (url.protocol === 'http:' && loopback))) {
     return value.replace(/\/$/, '')
   }
   console.warn(
-    `[github] refusing to send the token to ${value} — https, or http on loopback, only. Using ${fallback}`,
+    `[github] refusing to send the token to ${value} — api.github.com over https, or http on loopback, only. Using ${fallback}`,
   )
   return fallback
 }

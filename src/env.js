@@ -40,6 +40,17 @@ function optional(name) {
   return trimmed === '' ? null : trimmed
 }
 
+/**
+ * A positive millisecond count, or the default. `GITHUB_TIMEOUT_MS=abc` and
+ * `GITHUB_TIMEOUT_MS=0` must not turn the credential check into a control that
+ * always answers `no answer` — a check that cannot fail is a check that cannot
+ * tell you a credential is still live.
+ */
+function positiveMs(name, fallback) {
+  const n = Number(optional(name))
+  return Number.isFinite(n) && n > 0 && n <= 60_000 ? n : fallback
+}
+
 export const env = {
   resendApiKey: optional('RESEND_API_KEY'),
 
@@ -51,5 +62,5 @@ export const env = {
   githubApi: optional('GITHUB_API') ?? 'https://api.github.com',
   // Short, because this runs on the way up and on a page load. A training
   // room's wifi is not a reason for the app to hang.
-  githubTimeoutMs: Number(optional('GITHUB_TIMEOUT_MS') ?? 4000),
+  githubTimeoutMs: positiveMs('GITHUB_TIMEOUT_MS', 4000),
 }
