@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { db } from './db.js'
 import { login, requireAuth, sessions } from './auth.js'
 import { sendWelcomeEmail } from './lib/email.js'
+import { checkGitHubConnection } from './lib/github.js'
 import { createHash } from 'node:crypto'
 
 const sha256 = (value) => createHash('sha256').update(value).digest('hex')
@@ -110,6 +111,20 @@ app.post('/api/reviews', requireAuth, (req, res) => {
   res.status(201).json({ ok: true })
 })
 
+// ----- Integrations -----
+// Is the GitHub token in src/lib/github.js one GitHub still accepts? 200 here
+// means yes; 503 means either GitHub refused it or we could not ask. Read
+// `status` in the body to tell those two apart — they are not the same thing.
+app.get('/api/integrations/github', async (req, res) => {
+  const result = await checkGitHubConnection()
+  // Only the verdict leaves the process. `login` is the participant's GitHub
+  // account name and `detail` carries the upstream error text, and neither has
+  // any business in an answer this app gives to a caller with no session. The
+  // start-up line still prints both for the person who owns the terminal.
+  const { ok, configured, verdict, source, status, scopes, cached } = result
+  res.status(ok ? 200 : 503).json({ ok, configured, verdict, source, status, scopes, cached })
+})
+
 // ----- Admin -----
 app.delete('/api/admin/snacks/:id', (req, res) => {
   db.prepare('DELETE FROM snacks WHERE id = ?').run(req.params.id)
@@ -119,9 +134,58 @@ app.delete('/api/admin/snacks/:id', (req, res) => {
 // ----- Debugging -----
 // Added while chasing the "votes disappear after a restart" bug. Very handy.
 // TODO: take this out before anyone else sees it.
+
+// ---------------------------------------------------------------------------
+// The mask below is the one place this app is deliberately careful, and it is
+// not part of the flaw you are here to fix.
+//
+// This route is a planted flaw: it hands the whole process environment, every
+// live session token and every user row to an anonymous caller, and finding
+// and deleting it is the exercise. That is all still true — probe `E1` is
+// still red.
+//
+// What the mask stops is different. The rotation exercise asks you to put a
+// *real* credential of your own into a git-ignored `.env`, and `npm start`
+// loads that file into this process's environment. Without the mask, this
+// route would hand your own credential — and anything else your shell happens
+// to export — to anyone who can reach this port, including through this app's
+// own stored-XSS flaw, which runs on the same origin. The exercise is safe
+// because the practice token carries no scopes; that safety was never meant to
+// extend to the rest of your environment.
+//
+// So: the flaw stays, the teaching stays, and your secrets do not leave the
+// machine because of a lesson about not leaking secrets.
+// ---------------------------------------------------------------------------
+// An allowlist, because a denylist of credential-shaped names and values
+// cannot be complete and this mask fails open when it is wrong:
+// `AZURE_STORAGE=DefaultEndpointsProtocol=https;AccountKey=…` and
+// `GOOGLE_API=AIzaSy…` match none of the words and none of the shapes the
+// scanner knows, and both would be handed to an anonymous caller in full. The
+// variable *names* are still listed, so probe `E1` sees the same planted flaw
+// it always did; only the values the app itself needs are shown.
+const PUBLIC_ENVIRONMENT_NAMES = new Set([
+  'NODE_ENV',
+  'PORT',
+  'HOST',
+  'TZ',
+  'LANG',
+  'GITHUB_TIMEOUT_MS',
+])
+
+const REDACTED = '[redacted by Snackboard — not part of the flaw]'
+
+function maskEnvironment(environment) {
+  return Object.fromEntries(
+    Object.keys(environment).map((name) => [
+      name,
+      PUBLIC_ENVIRONMENT_NAMES.has(name) ? environment[name] : REDACTED,
+    ]),
+  )
+}
+
 app.get('/api/__debug/state', (req, res) => {
   res.json({
-    env: process.env,
+    env: maskEnvironment(process.env),
     sessions: Object.fromEntries(sessions),
     users: db.prepare('SELECT * FROM users').all(),
     uptimeSeconds: Math.round(process.uptime()),
@@ -139,4 +203,15 @@ const PORT = process.env.PORT ?? 3000
 const HOST = process.env.HOST ?? '127.0.0.1'
 app.listen(PORT, HOST, () => {
   console.log(`Snackboard API running on http://${HOST}:${PORT}`)
+
+  // Check the practice credential on the way up, after the port is open, and
+  // never fatally. Snackboard has to start on a laptop with no network, and on
+  // a laptop where nobody has planted a credential yet — which is every laptop
+  // in the room on the first run of the morning. One line, four possible words,
+  // and `refused` is the one the rotation exercise watches appear.
+  checkGitHubConnection().then((result) => {
+    const line = `[github] practice credential: ${result.verdict} — ${result.detail}`
+    if (result.ok) console.log(line)
+    else console.warn(line)
+  })
 })
