@@ -45,7 +45,19 @@ function safeApiBase(value) {
 
 // Short, because this runs on the way up and on a page load. A training room's
 // wifi is not a reason for the app to hang.
-const TIMEOUT_MS = Number(process.env.GITHUB_TIMEOUT_MS ?? 4000)
+//
+// Validated, because an unusable value must not turn the check into a control
+// that always answers `no answer`. A non-numeric value makes
+// `AbortSignal.timeout` throw inside the try below, where the catch swallows
+// it, and `0` aborts every request at once — either way the check sticks on the
+// one word of the four that says nothing about the credential, so it is
+// indistinguishable from bad wifi.
+function positiveMs(value, fallback) {
+  const n = Number(value)
+  return Number.isFinite(n) && n > 0 && n <= 60_000 ? n : fallback
+}
+
+const TIMEOUT_MS = positiveMs(process.env.GITHUB_TIMEOUT_MS, 4000)
 
 // The value on line 6 is a fake. It is shaped like a real classic token so the
 // secret scanners have something true to find, but no such token has ever
