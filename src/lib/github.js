@@ -24,12 +24,21 @@ function safeApiBase(value) {
     console.warn(`[github] GITHUB_API is not a URL (${value}) — using ${fallback}`)
     return fallback
   }
-  const loopback = ['localhost', '127.0.0.1', '[::1]', '::1'].includes(url.hostname)
-  if (url.protocol === 'https:' || (url.protocol === 'http:' && loopback)) {
-    return value.replace(/\/$/, '')
+  // Host, not just scheme: any https host would otherwise be accepted, and
+  // `GITHUB_API=https://collector.example` is all it takes to mail the
+  // practice credential somewhere else. GitHub itself, or a loopback stub.
+  const loopback = ['localhost', '127.0.0.1', '::1'].includes(url.hostname.replace(/^\[|\]$/g, ''))
+  const github = url.hostname === 'api.github.com'
+  const allowed =
+    (github && url.protocol === 'https:') ||
+    (loopback && (url.protocol === 'https:' || url.protocol === 'http:'))
+  if (allowed) {
+    // Rebuild from the parsed URL, so a query string, a fragment or embedded
+    // credentials in the value cannot change where `/user` actually lands.
+    return `${url.protocol}//${url.host}${url.pathname}`.replace(/\/$/, '')
   }
   console.warn(
-    `[github] refusing to send the token to ${value} — https, or http on loopback, only. Using ${fallback}`,
+    `[github] refusing to send the token to ${value} — api.github.com over https, or a loopback stub, only. Using ${fallback}`,
   )
   return fallback
 }
@@ -109,9 +118,22 @@ export async function checkGitHubConnection(token = undefined) {
     return { ...cache.result, cached: true }
   }
 
-  const result = await askGitHub(resolved)
-  cache = { token: resolved.token, at: Date.now(), result }
-  return { ...result, cached: false }
+  // One outbound request at a time. Concurrent callers share the in-flight
+  // promise, so N simultaneous inbound requests cannot become N credentialed
+  // GitHub calls — the TTL cache alone does not stop that, because nothing is
+  // in the cache until the first answer comes back.
+  if (inFlight && inFlight.token === resolved.token) {
+    return { ...(await inFlight.promise), cached: true }
+  }
+
+  inFlight = { token: resolved.token, promise: askGitHub(resolved) }
+  try {
+    const result = await inFlight.promise
+    cache = { token: resolved.token, at: Date.now(), result }
+    return { ...result, cached: false }
+  } finally {
+    inFlight = null
+  }
 }
 
 // A short cache, so one inbound request cannot become one outbound request.
@@ -129,6 +151,7 @@ export async function checkGitHubConnection(token = undefined) {
 // never be mistaken for a fresh one.
 const CACHE_TTL_MS = 10_000
 let cache = null
+let inFlight = null
 
 async function askGitHub(resolved) {
   if (!resolved.token) {

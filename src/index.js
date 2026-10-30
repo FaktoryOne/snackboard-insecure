@@ -117,7 +117,12 @@ app.post('/api/reviews', requireAuth, (req, res) => {
 // `status` in the body to tell those two apart — they are not the same thing.
 app.get('/api/integrations/github', async (req, res) => {
   const result = await checkGitHubConnection()
-  res.status(result.ok ? 200 : 503).json(result)
+  // Only the verdict leaves the process. `login` is the participant's GitHub
+  // account name and `detail` carries the upstream error text, and neither has
+  // any business in an answer this app gives to a caller with no session. The
+  // start-up line still prints both for the person who owns the terminal.
+  const { ok, configured, verdict, source, status, scopes, cached } = result
+  res.status(ok ? 200 : 503).json({ ok, configured, verdict, source, status, scopes, cached })
 })
 
 // ----- Admin -----
@@ -151,38 +156,30 @@ app.delete('/api/admin/snacks/:id', (req, res) => {
 // So: the flaw stays, the teaching stays, and your secrets do not leave the
 // machine because of a lesson about not leaking secrets.
 // ---------------------------------------------------------------------------
-// Masked on the name, because that is what catches the conventional ones.
-const CREDENTIAL_NAME = /TOKEN|KEY|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH|SESSION|COOKIE|DSN|URL|URI/i
-
-// ...and on the value, because the name is not enough. `OPENAI=sk-proj-…`
-// matches none of the words above, and somebody's shell really does look like
-// that. These are the shapes `probe/lib/repo.mjs` already knows, which is the
-// honest test of whether a string is credential-shaped: if the scanner you are
-// about to run over this repository would call it a secret, this route should
-// not be handing it out.
-const CREDENTIAL_VALUE = [
-  /^[a-z+]+:\/\/[^\s:/@]+:[^\s:/@]+@/i, // a password in a connection URL
-  /\bgh[pousr]_[A-Za-z0-9]{20,}\b/, // GitHub token
-  /\bgithub_pat_[A-Za-z0-9_]{20,}\b/, // GitHub fine-grained token
-  /\bre_[A-Za-z0-9_]{16,}\b/, // Resend
-  /\bsk-[A-Za-z0-9_-]{16,}\b/, // OpenAI and friends
-  /\bsk_(live|test)_[A-Za-z0-9]{10,}\b/, // Stripe
-  /\bAKIA[0-9A-Z]{16}\b/, // AWS access key id
-  /\bxox[baprs]-[A-Za-z0-9-]{10,}\b/, // Slack
-  /\bey[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\./, // a JWT
-  /-----BEGIN [A-Z ]*PRIVATE KEY-----/, // a private key
-]
+// An allowlist, because a denylist of credential-shaped names and values
+// cannot be complete and this mask fails open when it is wrong:
+// `AZURE_STORAGE=DefaultEndpointsProtocol=https;AccountKey=…` and
+// `GOOGLE_API=AIzaSy…` match none of the words and none of the shapes the
+// scanner knows, and both would be handed to an anonymous caller in full. The
+// variable *names* are still listed, so probe `E1` sees the same planted flaw
+// it always did; only the values the app itself needs are shown.
+const PUBLIC_ENVIRONMENT_NAMES = new Set([
+  'NODE_ENV',
+  'PORT',
+  'HOST',
+  'TZ',
+  'LANG',
+  'GITHUB_TIMEOUT_MS',
+])
 
 const REDACTED = '[redacted by Snackboard — not part of the flaw]'
 
 function maskEnvironment(environment) {
   return Object.fromEntries(
-    Object.entries(environment).map(([name, value]) => {
-      if (typeof value !== 'string' || value === '') return [name, value]
-      const looksSecret =
-        CREDENTIAL_NAME.test(name) || CREDENTIAL_VALUE.some((re) => re.test(value))
-      return [name, looksSecret ? REDACTED : value]
-    }),
+    Object.keys(environment).map((name) => [
+      name,
+      PUBLIC_ENVIRONMENT_NAMES.has(name) ? environment[name] : REDACTED,
+    ]),
   )
 }
 
