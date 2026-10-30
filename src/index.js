@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { db } from './db.js'
 import { login, requireAuth, requireRole } from './auth.js'
 import { sendWelcomeEmail } from './lib/email.js'
+import { checkGitHubConnection } from './lib/github.js'
 import { validate, escapeHtml } from './validate.js'
 import { createHash } from 'node:crypto'
 
@@ -171,6 +172,24 @@ app.post('/api/reviews', (req, res) => {
   res.status(201).json({ ok: true })
 })
 
+// ----- Integrations -----
+// Is the practice credential one GitHub still accepts? 200 here means yes; 503
+// means either GitHub refused it or we could not ask. Read `verdict` in the
+// body to tell those two apart — they are not the same thing.
+//
+// Admin-only, and it answers with four fields rather than everything it knows.
+// "Is the integration up" is an operations question, not something every
+// account that can register needs, and the full check result carries the
+// connected GitHub account's login, the token's scopes and a detail string that
+// names the API host. Deny by default gets you authentication; this route also
+// needs authorization, and the difference between those two is most of this
+// module. The operator still sees the whole detail — on the start-up line, in
+// their own console, where it belongs.
+app.get('/api/integrations/github', requireRole('admin'), async (req, res) => {
+  const { ok, configured, verdict, status, cached } = await checkGitHubConnection()
+  res.status(ok ? 200 : 503).json({ ok, configured, verdict, status, cached })
+})
+
 // ----- Admin -----
 // Authenticated by the deny-by-default middleware, then checked for the role.
 app.delete('/api/admin/snacks/:id', requireRole('admin'), (req, res) => {
@@ -181,6 +200,11 @@ app.delete('/api/admin/snacks/:id', requireRole('admin'), (req, res) => {
 // The /api/__debug/state route was deleted. If you need that information
 // again, read it from a log you control, behind the same authorization as
 // everything else.
+//
+// The starter branch masks credential-shaped values out of that route, so that
+// a participant's own practice credential in a `.env` cannot be read out of it
+// before they get round to deleting the route. Nothing to mask here: the route
+// is gone, which is the actual fix.
 
 // Serve the built web client if it exists (npm start); otherwise API only.
 const dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -203,4 +227,15 @@ const PORT = process.env.PORT ?? 3000
 const HOST = process.env.HOST ?? '127.0.0.1'
 app.listen(PORT, HOST, () => {
   console.log(`Snackboard API running on http://${HOST}:${PORT}`)
+
+  // Check the practice credential on the way up, after the port is open, and
+  // never fatally. Snackboard has to start on a laptop with no network, and on
+  // a laptop where nobody has planted a credential yet — which is every laptop
+  // in the room on the first run of the morning. One line, four possible words,
+  // and `refused` is the one the rotation exercise watches appear.
+  checkGitHubConnection().then((result) => {
+    const line = `[github] practice credential: ${result.verdict} — ${result.detail}`
+    if (result.ok) console.log(line)
+    else console.warn(line)
+  })
 })
