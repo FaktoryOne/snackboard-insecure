@@ -184,6 +184,14 @@ git commit -am "wire up the repo import"
 It is now in your working tree *and* in your history, which is what the manual
 hunt and the history scan are for. `npm run probe -- --only S1,S2` will find it.
 
+**The token goes in the file, and nowhere else in the commit** — not in the
+message, not in the branch name. A credential in a commit message is leaked as
+completely as one in a file and it hides better: `S1` reads the **files** in
+your tree, so it will not show you that one, while `S2` will, because
+`git log -p` prints messages as well as diffs. If you have already done it you
+have lost nothing — make a second token, and bring the first one to the morning
+as a finding of your own. It is a better one than ours.
+
 **Commit this branch locally and do not push it.** The token is powerless, so
 this is hygiene rather than an emergency, but the habit is the thing being
 taught.
@@ -229,15 +237,23 @@ anyway, and why **the start-up line, not this route, is the thing you read for
 "verify"**. On the fixed version of this app the route needs an admin session;
 here it needs nothing, which is itself one of the things wrong with it.
 
-> [!NOTE]
+> [!WARNING]
 > **Your `.env` is loaded into this process, and this app has a debug route that
 > hands the environment to anyone who asks.** That route is one of the flaws you
-> are here to find, so it is still there — but it **masks values whose variable
-> name looks like a credential**, including your practice token and anything
-> else your shell exports. That mask is the one place this app is deliberately
-> careful, it is commented as such in `src/index.js`, and it is not part of the
-> flaw. You are committing a powerless token on purpose; that was never meant to
-> put the rest of your environment on the network.
+> are here to find, so it is still there. Two house rules follow from it, and
+> neither of them is about this credential:
+>
+> - **Put nothing in Snackboard's `.env` except the practice token.**
+> - **Do not start Snackboard from a terminal that has your real work
+>   credentials exported into it.** The file is not the only input to the
+>   environment this route hands out; a shell carrying your employer's keys is
+>   the one input that turns a planted flaw into a genuine leak of your own.
+>
+> The route does **mask** values whose variable *name* or *value* looks like a
+> credential — your practice token included. That mask is the one place this app
+> is deliberately careful, it is commented as such in `src/index.js`, and it is
+> not part of the flaw. Treat it as a safety net: nothing you do here should
+> need the net.
 
 To prove to yourself that the token really is powerless, ask GitHub what it is
 allowed to do. An empty answer is the answer you want:
@@ -300,17 +316,41 @@ exercise: a status code you wrote down, not a belief about what happened.
 
 ```bash
 read -rs OLD_TOKEN
-curl -s -o /dev/null -w '%{http_code}\n' \
-  -H "Authorization: Bearer $OLD_TOKEN" https://api.github.com/user
+curl -s -o /dev/null -w '%{http_code}' \
+  -H "Authorization: Bearer $OLD_TOKEN" https://api.github.com/user; echo
 ```
 
 `read -rs` prints no prompt and echoes nothing — it looks like a hung terminal,
-but it is waiting. Paste the token and press Enter. On Windows PowerShell:
+but it is waiting. Paste the token and press Enter. The trailing `; echo` only
+puts the status code on a line of its own. On Windows PowerShell:
 
 ```powershell
 $OLD_TOKEN = Read-Host "token"
 curl.exe -s -o NUL -w "%{http_code}`n" -H "Authorization: Bearer $OLD_TOKEN" https://api.github.com/user
 ```
+
+PowerShell's `Read-Host` **shows what you paste**, unlike the `bash` version. It
+does not reach your command history, but it is on your screen, so clear it with
+`cls` if anyone can see the laptop. Git for Windows installs **Git Bash** — if
+you would rather the token were never on screen, run the `bash` version there.
+
+**What this command does with the token, because it will not always be fine.**
+The value travels in `curl`'s *command line*, and on a shared machine another
+user can generally read that for as long as the request runs (`ps -ef`, or
+`/proc/<pid>/cmdline`). Today that costs you nothing, for the same reason the
+whole exercise is safe: this credential is worth nothing if it is seen. It
+starts costing something the first time you do this with a credential that *is*
+worth something, which is Monday. That version is one line longer:
+
+```bash
+read -rs OLD_TOKEN
+printf 'header = "Authorization: Bearer %s"' "$OLD_TOKEN" \
+  | curl -s -o /dev/null -w '%{http_code}' -K - https://api.github.com/user; echo
+```
+
+`printf` is built into the shell, so it never becomes a process with a command
+line of its own, and `-K -` tells `curl` to read the header from its input
+rather than from its arguments. Same request, same two numbers.
 
 Run it **before** you revoke anything, with the value that is in your config
 right now. You want **200**. Then run the identical command after step 4, with
